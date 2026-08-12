@@ -79,6 +79,7 @@ cat > .env <<EOF
 SPRING_PROFILES_ACTIVE=http
 DISCORD_TOKEN=<YOUR_DISCORD_BOT_TOKEN>
 DISCORD_GUILD_ID=<OPTIONAL_DEFAULT_SERVER_ID>
+DISCORD_OUTBOX_HOST=./outbox
 EOF
 ```
 
@@ -321,14 +322,32 @@ Remote MCP Connector:
 - [`edit_private_message`](): Edit a private message from a specific user
 - [`delete_private_message`](): Delete a private message from a specific user
 - [`read_private_messages`](): Read private message history from a specific user (includes attachment metadata, supports `count` 1-100 and optional cursor: `before` or `after` or `around`)
+- [`send_private_file`](): Send a file privately to a specific user
 
 #### Message Management
 - [`send_message`](): Send a message to a specific channel
+- [`send_file`](): Send a file to a specific channel
 - [`edit_message`](): Edit a message from a specific channel
 - [`delete_message`](): Delete a message from a specific channel
 - [`read_messages`](): Read message history from a specific channel (includes attachment metadata, supports `count` 1-100 and optional cursor: `before` or `after` or `around`)
 - [`add_reaction`](): Add a reaction (emoji) to a specific message
 - [`remove_reaction`](): Remove a specified reaction (emoji) from a message
+
+File uploads use paths inside the MCP runtime, not arbitrary host paths. With Docker Compose, the host directory configured by `DISCORD_OUTBOX_HOST` is mounted read-only at `/outbox`; `DISCORD_FILE_ROOT` defaults to `/outbox`. Copy final artifacts into the host outbox and call a tool with `/outbox/<filename>`. Paths outside the configured root are intentionally rejected. Do not mount your entire home directory.
+
+Example flow:
+```bash
+cp /path/to/generated/assets.zip ./outbox/assets.zip
+```
+
+MCP call conceptually:
+```text
+send_private_file(
+  userId="<discord-user-id>",
+  filePath="/outbox/assets.zip",
+  message="Here are the requested assets."
+)
+```
 
 #### Channel Management
 - [`create_text_channel`](): Create a new text channel
