@@ -51,3 +51,5 @@ outbox/*
 ai-docs/
 issues/
 wiki/
+
+.agents/skills/discord-mcp/LOCAL.md
