@@ -13,6 +13,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.List;
 
 @Service
@@ -87,13 +88,23 @@ public class MessageService {
             throw new IllegalArgumentException("Channel not found by channelId");
         }
 
-        var action = channel.sendFiles(attachmentSupport.createUpload(filePath));
-        if (message != null && !message.isBlank()) {
-            action.setContent(message);
-        }
+        var upload = attachmentSupport.createUpload(filePath);
+        try {
+            var action = channel.sendFiles(upload);
+            if (message != null && !message.isBlank()) {
+                action.setContent(message);
+            }
 
-        Message sentMessage = action.complete();
-        return "File sent successfully. Message link: " + sentMessage.getJumpUrl();
+            Message sentMessage = action.complete();
+            return "File sent successfully. Message link: " + sentMessage.getJumpUrl();
+        } catch (RuntimeException | Error ex) {
+            try {
+                upload.close();
+            } catch (IOException closeException) {
+                ex.addSuppressed(closeException);
+            }
+            throw ex;
+        }
     }
 
     /**

@@ -11,17 +11,36 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class MessageServiceAttachmentTest {
 
+    private static final class CloseTrackingInputStream extends ByteArrayInputStream {
+        private boolean closed;
+
+        private CloseTrackingInputStream() {
+            super(new byte[]{1});
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
+    }
+
     @Test
-    void sendsFileWithOptionalMessageToKnownChannel() {
+    void sendsFileWithOptionalMessageToKnownChannel() throws IOException {
         JDA jda = mock(JDA.class);
         AttachmentSupport attachments = mock(AttachmentSupport.class);
         TextChannel channel = mock(TextChannel.class);
@@ -45,6 +64,7 @@ class MessageServiceAttachmentTest {
         verify(attachments).createUpload("/outbox/test.zip");
         verify(channel).sendFiles(upload);
         verify(action).setContent("release notes");
+        verify(upload, never()).close();
     }
 
     @ParameterizedTest
@@ -69,7 +89,7 @@ class MessageServiceAttachmentTest {
         service.sendFile("123", "/outbox/test.zip", message);
 
         verify(action).complete();
-        verify(action, org.mockito.Mockito.never()).setContent(org.mockito.ArgumentMatchers.anyString());
+        verify(action, never()).setContent(org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -90,5 +110,26 @@ class MessageServiceAttachmentTest {
 
         assertEquals("Channel not found by channelId", ex.getMessage());
         verifyNoInteractions(attachments);
+    }
+
+    @Test
+    void closesUploadWhenChannelRejectsItBeforeTakingOwnership() {
+        JDA jda = mock(JDA.class);
+        AttachmentSupport attachments = mock(AttachmentSupport.class);
+        TextChannel channel = mock(TextChannel.class);
+        CloseTrackingInputStream input = new CloseTrackingInputStream();
+        FileUpload upload = FileUpload.fromData(input, "test.zip");
+
+        when(jda.getTextChannelById("123")).thenReturn(channel);
+        when(attachments.createUpload("/outbox/test.zip")).thenReturn(upload);
+        when(channel.sendFiles(upload)).thenThrow(new IllegalStateException("rejected"));
+
+        MessageService service = new MessageService(jda, attachments);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> service.sendFile("123", "/outbox/test.zip", null)
+        );
+        assertTrue(input.closed);
     }
 }
