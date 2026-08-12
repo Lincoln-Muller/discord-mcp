@@ -12,6 +12,7 @@ import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,6 +34,11 @@ import static org.mockito.Mockito.when;
 class UserServiceAttachmentTest {
 
     private static final String FILE_PATH = "/outbox/test.zip";
+
+    private enum FailureStage {
+        SET_CONTENT,
+        COMPLETE
+    }
 
     private static final class CloseTrackingInputStream extends ByteArrayInputStream {
         private boolean closed;
@@ -141,6 +148,56 @@ class UserServiceAttachmentTest {
 
         assertSame(rejection, thrown);
         assertTrue(input.closed);
+    }
+
+    @ParameterizedTest
+    @EnumSource(FailureStage.class)
+    void closesUploadAndPreservesFailureBeforeJdaOwnership(FailureStage stage) {
+        DmFixture fixture = new DmFixture();
+        CloseTrackingInputStream input = new CloseTrackingInputStream();
+        FileUpload upload = FileUpload.fromData(input, "test.zip");
+        MessageCreateAction action = mock(MessageCreateAction.class);
+        IllegalStateException rejection = new IllegalStateException(stage.name());
+
+        when(fixture.attachments.createUpload(FILE_PATH)).thenReturn(upload);
+        when(fixture.channel.sendFiles(upload)).thenReturn(action);
+        if (stage == FailureStage.SET_CONTENT) {
+            when(action.setContent("release notes")).thenThrow(rejection);
+        } else {
+            when(action.setContent("release notes")).thenReturn(action);
+            when(action.complete()).thenThrow(rejection);
+        }
+
+        RuntimeException thrown = assertThrows(
+                IllegalStateException.class,
+                () -> fixture.service.sendPrivateFile("123", FILE_PATH, "release notes")
+        );
+
+        assertSame(rejection, thrown);
+        assertTrue(input.closed);
+    }
+
+    @Test
+    void leavesUploadOpenWhenJumpUrlFailsAfterJdaOwnership() {
+        DmFixture fixture = new DmFixture();
+        CloseTrackingInputStream input = new CloseTrackingInputStream();
+        FileUpload upload = FileUpload.fromData(input, "test.zip");
+        MessageCreateAction action = mock(MessageCreateAction.class);
+        Message sentMessage = mock(Message.class);
+        IllegalStateException failure = new IllegalStateException("jump URL unavailable");
+
+        when(fixture.attachments.createUpload(FILE_PATH)).thenReturn(upload);
+        when(fixture.channel.sendFiles(upload)).thenReturn(action);
+        when(action.complete()).thenReturn(sentMessage);
+        when(sentMessage.getJumpUrl()).thenThrow(failure);
+
+        RuntimeException thrown = assertThrows(
+                IllegalStateException.class,
+                () -> fixture.service.sendPrivateFile("123", FILE_PATH, null)
+        );
+
+        assertSame(failure, thrown);
+        assertFalse(input.closed);
     }
 
     private static final class DmFixture {

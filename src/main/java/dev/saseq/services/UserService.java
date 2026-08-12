@@ -125,14 +125,14 @@ public class UserService {
 
         var privateChannel = user.openPrivateChannel().complete();
         var upload = attachmentSupport.createUpload(filePath);
+        Message sentMessage;
         try {
             var action = privateChannel.sendFiles(upload);
             if (message != null && !message.isBlank()) {
                 action.setContent(message);
             }
 
-            Message sentMessage = action.complete();
-            return "Private file sent successfully. Message link: " + sentMessage.getJumpUrl();
+            sentMessage = action.complete();
         } catch (RuntimeException | Error ex) {
             try {
                 upload.close();
@@ -141,6 +141,7 @@ public class UserService {
             }
             throw ex;
         }
+        return "Private file sent successfully. Message link: " + sentMessage.getJumpUrl();
     }
 
     /**
