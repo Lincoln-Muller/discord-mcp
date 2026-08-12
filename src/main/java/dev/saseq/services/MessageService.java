@@ -89,14 +89,14 @@ public class MessageService {
         }
 
         var upload = attachmentSupport.createUpload(filePath);
+        Message sentMessage;
         try {
             var action = channel.sendFiles(upload);
             if (message != null && !message.isBlank()) {
                 action.setContent(message);
             }
 
-            Message sentMessage = action.complete();
-            return "File sent successfully. Message link: " + sentMessage.getJumpUrl();
+            sentMessage = action.complete();
         } catch (RuntimeException | Error ex) {
             try {
                 upload.close();
@@ -105,6 +105,7 @@ public class MessageService {
             }
             throw ex;
         }
+        return "File sent successfully. Message link: " + sentMessage.getJumpUrl();
     }
 
     /**

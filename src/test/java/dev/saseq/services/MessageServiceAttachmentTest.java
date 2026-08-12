@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -131,5 +132,32 @@ class MessageServiceAttachmentTest {
                 () -> service.sendFile("123", "/outbox/test.zip", null)
         );
         assertTrue(input.closed);
+    }
+
+    @Test
+    void leavesUploadOpenWhenResponseFormattingFailsAfterSuccessfulSend() {
+        JDA jda = mock(JDA.class);
+        AttachmentSupport attachments = mock(AttachmentSupport.class);
+        TextChannel channel = mock(TextChannel.class);
+        MessageCreateAction action = mock(MessageCreateAction.class);
+        Message sentMessage = mock(Message.class);
+        CloseTrackingInputStream input = new CloseTrackingInputStream();
+        FileUpload upload = FileUpload.fromData(input, "test.zip");
+
+        when(jda.getTextChannelById("123")).thenReturn(channel);
+        when(attachments.createUpload("/outbox/test.zip")).thenReturn(upload);
+        when(channel.sendFiles(upload)).thenReturn(action);
+        when(action.complete()).thenReturn(sentMessage);
+        when(sentMessage.getJumpUrl()).thenThrow(new IllegalStateException("jump URL unavailable"));
+
+        MessageService service = new MessageService(jda, attachments);
+
+        IllegalStateException ex = assertThrows(
+                IllegalStateException.class,
+                () -> service.sendFile("123", "/outbox/test.zip", null)
+        );
+
+        assertEquals("jump URL unavailable", ex.getMessage());
+        assertFalse(input.closed);
     }
 }
