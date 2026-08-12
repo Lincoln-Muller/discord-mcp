@@ -1,5 +1,6 @@
 package dev.saseq.configs;
 
+import dev.saseq.support.AttachmentSupport;
 import dev.saseq.services.DiscordService;
 import dev.saseq.services.MessageService;
 import dev.saseq.services.UserService;
@@ -59,6 +60,12 @@ public class DiscordMcpConfig {
                 emojiService,
                 forumService
         ).build();
+    }
+
+    @Bean
+    public AttachmentSupport attachmentSupport(
+            @Value("${DISCORD_FILE_ROOT:/outbox}") String fileRoot) {
+        return new AttachmentSupport(fileRoot);
     }
 
     @Bean
