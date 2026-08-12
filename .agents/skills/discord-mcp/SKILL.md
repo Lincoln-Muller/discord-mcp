@@ -16,21 +16,20 @@ Never infer a recipient silently.
 3. Otherwise call `get_user_id_by_name` using the configured default guild.
 4. Ask the user to choose if lookup is ambiguous. If lookup fails, ask for the numeric user ID.
 
-Immediately before a real send, show and confirm the resolved recipient, exact message, and filename. Wait for confirmation; drafts and hypothetical exercises are not authorization to send.
+Immediately before a real send, show and confirm the resolved recipient or channel, exact message, and user-visible outgoing filename. Wait for confirmation; drafts and hypothetical exercises are not authorization to send.
 
 ## Operations
 
 - Send text: `send_private_message(userId, message)`.
 - Read DMs: `read_private_messages(userId, count?, before?, after?, around?)`; use the smallest count that satisfies the request.
-- Send a channel file only when explicitly requested: `send_file(channelId, "/outbox/<filename>", message?)`.
-
-For a DM attachment or delayed delivery:
+For any attachment, including a DM, channel upload, or delayed delivery:
 
 1. Finish and verify the intended final artifact. For a ZIP, create it and validate its contents first.
-2. Resolve the recipient, then perform the immediate pre-send confirmation above.
-3. Copy only the final artifact to the configured host Discord outbox with a clear filename.
-4. Call `send_private_file(userId, "/outbox/<filename>", message?)`; the MCP runtime path is `/outbox/...`, never the host source path.
-5. Confirm the tool returned success and report both artifact and delivery results.
+2. Choose the final user-visible outgoing filename, copy only that artifact to the configured host Discord outbox, and verify the copy.
+3. Resolve the recipient or channel.
+4. Immediately before sending, confirm the resolved destination, exact message, and exact outgoing filename prepared in step 2.
+5. For a DM call `send_private_file(userId, "/outbox/<filename>", message?)`. Only when a channel was explicitly requested, call `send_file(channelId, "/outbox/<filename>", message?)`. The MCP runtime path is `/outbox/...`, never the host source path.
+6. Confirm the tool returned success and report both artifact and delivery results.
 
 Do not send partial artifacts unless requested.
 
