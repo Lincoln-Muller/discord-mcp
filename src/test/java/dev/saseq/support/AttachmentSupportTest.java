@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class AttachmentSupportTest {
 
@@ -152,6 +153,23 @@ class AttachmentSupportTest {
         try (FileUpload upload = support.createUpload(file.toString())) {
             assertEquals("report.txt", upload.getName());
             assertArrayEquals("hello".getBytes(), upload.getData().readAllBytes());
+        }
+    }
+
+    @Test
+    void createsUploadFromReadOnlyRuntimeRoot() throws IOException {
+        String runtimeRoot = System.getProperty("discord.runtime.fileRoot");
+        assumeTrue(runtimeRoot != null);
+
+        Path root = Path.of(runtimeRoot).toRealPath();
+        assertTrue(Files.getFileStore(root).isReadOnly());
+
+        Path file = root.resolve("test-upload.zip");
+        AttachmentSupport support = new AttachmentSupport(root.toString());
+
+        try (FileUpload upload = support.createUpload(file.toString())) {
+            assertEquals("test-upload.zip", upload.getName());
+            assertArrayEquals(new byte[]{'P', 'K'}, upload.getData().readNBytes(2));
         }
     }
 
