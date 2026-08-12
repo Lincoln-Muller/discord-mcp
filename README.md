@@ -197,10 +197,15 @@ claude mcp add discord-mcp -- docker run --rm -i -e DISCORD_TOKEN=<YOUR_DISCORD_
         🤖 Codex CLI Connection
     </summary>
 
-```bash
-codex mcp add discord-mcp --url http://localhost:8085/mcp
-codex mcp list
+On-demand mode (starts Colima and one read-only STDIO container with Codex, then removes the container and stops Colima when the session closes):
+
+```toml
+[mcp_servers.discord-mcp]
+command = "/absolute/path/to/discord-mcp/scripts/codex-stdio.py"
+startup_timeout_sec = 180
 ```
+
+The wrapper uses the repository's `.env` and mounts `outbox/` read-only at `/outbox`. It leaves Colima running when Colima was already active or another container is still using it.
 
 </details>
 
