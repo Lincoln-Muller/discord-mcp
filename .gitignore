@@ -44,6 +44,9 @@ AGENTS.md
 # Local runtime secrets
 .env
 
+outbox/*
+!outbox/.gitkeep
+
 # Local docs/spec drafts (not part of release commits)
 ai-docs/
 issues/
