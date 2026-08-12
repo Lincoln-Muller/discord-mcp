@@ -1,5 +1,6 @@
 package dev.saseq.services;
 
+import dev.saseq.support.AttachmentSupport;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -10,6 +11,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -18,12 +20,14 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private final JDA jda;
+    private final AttachmentSupport attachmentSupport;
 
     @Value("${DISCORD_GUILD_ID:}")
     private String defaultGuildId;
 
-    public UserService(JDA jda) {
+    public UserService(JDA jda, AttachmentSupport attachmentSupport) {
         this.jda = jda;
+        this.attachmentSupport = attachmentSupport;
     }
 
     private String resolveGuildId(String guildId) {
@@ -103,6 +107,40 @@ public class UserService {
         }
         Message sentMessage = user.openPrivateChannel().complete().sendMessage(message).complete();
         return "Message sent successfully. Message link: " + sentMessage.getJumpUrl();
+    }
+
+    @Tool(name = "send_private_file", description = "Send a local file attachment in a Discord DM")
+    public String sendPrivateFile(
+            @ToolParam(description = "Discord user ID") String userId,
+            @ToolParam(description = "Absolute file path inside DISCORD_FILE_ROOT") String filePath,
+            @ToolParam(description = "Optional message content", required = false) String message) {
+        if (userId == null || userId.isEmpty()) {
+            throw new IllegalArgumentException("userId cannot be null");
+        }
+
+        User user = getUserById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found by userId");
+        }
+
+        var privateChannel = user.openPrivateChannel().complete();
+        var upload = attachmentSupport.createUpload(filePath);
+        try {
+            var action = privateChannel.sendFiles(upload);
+            if (message != null && !message.isBlank()) {
+                action.setContent(message);
+            }
+
+            Message sentMessage = action.complete();
+            return "Private file sent successfully. Message link: " + sentMessage.getJumpUrl();
+        } catch (RuntimeException | Error ex) {
+            try {
+                upload.close();
+            } catch (IOException closeException) {
+                ex.addSuppressed(closeException);
+            }
+            throw ex;
+        }
     }
 
     /**
