@@ -1,5 +1,6 @@
 package dev.saseq.services;
 
+import dev.saseq.support.AttachmentSupport;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.concrete.NewsChannel;
@@ -18,9 +19,11 @@ import java.util.List;
 public class MessageService {
 
     private final JDA jda;
+    private final AttachmentSupport attachmentSupport;
 
-    public MessageService(JDA jda) {
+    public MessageService(JDA jda, AttachmentSupport attachmentSupport) {
         this.jda = jda;
+        this.attachmentSupport = attachmentSupport;
     }
 
     /**
@@ -68,6 +71,29 @@ public class MessageService {
         }
         Message sentMessage = channel.sendMessage(message).complete();
         return "Message sent successfully. Message link: " + sentMessage.getJumpUrl();
+    }
+
+    @Tool(name = "send_file", description = "Send a local file attachment to a Discord channel")
+    public String sendFile(
+            @ToolParam(description = "Discord channel ID") String channelId,
+            @ToolParam(description = "Absolute file path inside DISCORD_FILE_ROOT") String filePath,
+            @ToolParam(description = "Optional message content", required = false) String message) {
+        if (channelId == null || channelId.isEmpty()) {
+            throw new IllegalArgumentException("channelId cannot be null");
+        }
+
+        MessageChannel channel = getMessageChannelById(channelId);
+        if (channel == null) {
+            throw new IllegalArgumentException("Channel not found by channelId");
+        }
+
+        var action = channel.sendFiles(attachmentSupport.createUpload(filePath));
+        if (message != null && !message.isBlank()) {
+            action.setContent(message);
+        }
+
+        Message sentMessage = action.complete();
+        return "File sent successfully. Message link: " + sentMessage.getJumpUrl();
     }
 
     /**
